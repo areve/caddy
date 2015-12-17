@@ -147,6 +147,83 @@ func TestBrowseTemplate(t *testing.T) {
 
 <h1>/photos/</h1>
 
+<a href=".hidden.txt">.hidden.txt</a><br>
+
+<a href="hide_something">hide_something</a><br>
+
+<a href="SomeConfig">SomeConfig</a><br>
+
+<a href="something.hide">something.hide</a><br>
+
+<a href="test.html">test.html</a><br>
+
+<a href="test2.html">test2.html</a><br>
+
+<a href="test3.html">test3.html</a><br>
+
+</body>
+</html>
+`
+
+	if respBody != expectedBody {
+		t.Fatalf("Expected body: %v got: %v", expectedBody, respBody)
+	}
+
+}
+
+
+func TestBrowseTemplateHidden(t *testing.T) {
+	tmpl, err := template.ParseFiles("testdata/photos.tpl")
+	if err != nil {
+		t.Fatalf("An error occured while parsing the template: %v", err)
+	}
+
+	b := Browse{
+		Next: middleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
+			t.Fatalf("Next shouldn't be called")
+			return 0, nil
+		}),
+		Root: "./testdata",
+		Hide: middleware.Hide{
+			Configs: []middleware.HideConfig{
+				middleware.HideConfig{
+					Prefix: []string{ "HIDE_", "." },
+					Suffix: []string{ ".Hide" },
+					Name: []string{ "SOMECONFIG" },
+				},
+			},
+		},
+		Configs: []Config{
+			{
+				PathScope: "/photos",
+				Template:  tmpl,
+			},
+		},
+	}
+
+	req, err := http.NewRequest("GET", "/photos/", nil)
+	if err != nil {
+		t.Fatalf("Test: Could not create HTTP request: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+
+	code, err := b.ServeHTTP(rec, req)
+	if code != http.StatusOK {
+		t.Fatalf("Wrong status, expected %d, got %d", http.StatusOK, code)
+	}
+
+	respBody := rec.Body.String()
+	expectedBody := `<!DOCTYPE html>
+<html>
+<head>
+<title>Template</title>
+</head>
+<body>
+<h1>Header</h1>
+
+<h1>/photos/</h1>
+
 <a href="test.html">test.html</a><br>
 
 <a href="test2.html">test2.html</a><br>

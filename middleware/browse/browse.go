@@ -25,6 +25,7 @@ import (
 type Browse struct {
 	Next          middleware.Handler
 	Root          string
+	Hide          middleware.Hide
 	Configs       []Config
 	IgnoreIndexes bool
 }
@@ -138,11 +139,17 @@ func (fi FileInfo) HumanModTime(format string) string {
 	return fi.ModTime.Format(format)
 }
 
-func directoryListing(files []os.FileInfo, r *http.Request, canGoUp bool, root string, ignoreIndexes bool, vars interface{}) (Listing, error) {
+func directoryListing(files []os.FileInfo, r *http.Request, canGoUp bool, root string, ignoreIndexes bool, hide middleware.Hide, vars interface{}) (Listing, error) {
 	var fileinfos []FileInfo
 	var urlPath = r.URL.Path
-	for _, f := range files {
+
+	files_loop: for _, f := range files {
 		name := f.Name()
+
+		// Hide file or directory if it's in the hide list
+		if hide.IsMatchName(name) {
+			continue files_loop
+		}
 
 		// Directory is not browsable if it contains index file
 		if !ignoreIndexes {
@@ -185,6 +192,11 @@ func directoryListing(files []os.FileInfo, r *http.Request, canGoUp bool, root s
 
 // ServeHTTP implements the middleware.Handler interface.
 func (b Browse) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
+	// If the file is supposed to be hidden, return a 404
+	if b.Hide.IsMatchPath(r.URL.Path) {
+		return http.StatusNotFound, nil
+	}
+
 	filename := b.Root + r.URL.Path
 	info, err := os.Stat(filename)
 	if err != nil {
@@ -233,7 +245,7 @@ func (b Browse) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 			}
 		}
 		// Assemble listing of directory contents
-		listing, err := directoryListing(files, r, canGoUp, b.Root, b.IgnoreIndexes, bc.Variables)
+		listing, err := directoryListing(files, r, canGoUp, b.Root, b.IgnoreIndexes, b.Hide, bc.Variables)
 		if err != nil { // directory isn't browsable
 			continue
 		}

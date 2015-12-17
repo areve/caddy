@@ -35,7 +35,11 @@ func TestServeHTTP(t *testing.T) {
 	beforeServeHTTPTest(t)
 	defer afterServeHTTPTest(t)
 
-	fileserver := FileServer(http.Dir(testDir), []string{"hidden.html"})
+	var hide Hide
+	var hc HideConfig
+	hc.Name = append(hc.Name, "hidden.html")
+	hide.Configs = append(hide.Configs, hc)
+	fileserver := FileServer(http.Dir(testDir), &hide)
 
 	movedPermanently := "Moved Permanently"
 
@@ -134,7 +138,62 @@ func TestServeHTTP(t *testing.T) {
 			t.Errorf(getTestPrefix(i)+"Expected body to contain %q, found %q", test.expectedBodyContent, responseRecorder.Body.String())
 		}
 	}
+}
 
+// TestServeHTTPHidden covers scenarios when serving files when files ought to be not served due to HideConfig.
+func TestServeHTTPHiddenDir(t *testing.T) {
+
+	beforeServeHTTPTest(t)
+	defer afterServeHTTPTest(t)
+
+	var hide Hide
+	var hc HideConfig
+	hc.Name = append(hc.Name, "hidden.html")
+	hc.Name = append(hc.Name, "dirwithindex")
+	hide.Configs = append(hide.Configs, hc)
+	fileserver := FileServer(http.Dir(testDir), &hide)
+
+	tests := []struct {
+		url string
+
+		expectedStatus      int
+		expectedBodyContent string
+		hide HideConfig
+	}{
+		{
+			url:                 "https://foo/dirwithindex/",
+			expectedStatus:      http.StatusNotFound,
+		},
+		{
+			url:                 "https://foo/dirwithindex",
+			expectedStatus:      http.StatusNotFound,
+		},
+		{
+			url:                 "https://foo/dirwithindex/index.html",
+			expectedStatus:      http.StatusNotFound,
+		},
+	}
+
+	for i, test := range tests {
+		responseRecorder := httptest.NewRecorder()
+		request, err := http.NewRequest("GET", test.url, strings.NewReader(""))
+		status, err := fileserver.ServeHTTP(responseRecorder, request)
+
+		// check if error matches expectations
+		if err != nil {
+			t.Errorf(getTestPrefix(i)+"Serving file at %s failed. Error was: %v", test.url, err)
+		}
+
+		// check status code
+		if test.expectedStatus != status {
+			t.Errorf(getTestPrefix(i)+"Expected status %d, found %d", test.expectedStatus, status)
+		}
+
+		// check body content
+		if !strings.Contains(responseRecorder.Body.String(), test.expectedBodyContent) {
+			t.Errorf(getTestPrefix(i)+"Expected body to contain %q, found %q", test.expectedBodyContent, responseRecorder.Body.String())
+		}
+	}
 }
 
 // beforeServeHTTPTest creates a test directory with the structure, defined in the variable testFiles

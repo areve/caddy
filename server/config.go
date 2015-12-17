@@ -53,6 +53,9 @@ type Config struct {
 
 	// The application's version
 	AppVersion string
+
+	// Hide configuration
+	Hide middleware.Hide
 }
 
 // Address returns the host:port of c as a string.

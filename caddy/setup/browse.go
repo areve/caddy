@@ -20,6 +20,7 @@ func Browse(c *Controller) (middleware.Middleware, error) {
 		Root:          c.Root,
 		Configs:       configs,
 		IgnoreIndexes: false,
+		Hide: c.Hide,
 	}
 
 	return func(next middleware.Handler) middleware.Handler {
